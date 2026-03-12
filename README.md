@@ -87,11 +87,11 @@ command -v powershell.exe
 
 ## 🚀 Installation (recommended)
 
-`install.sh` automatically downloads `npiperelay.exe` from GitHub (release asset), then installs it into `~/.local/bin`.
-
-Primary download URL used by the installer:
-
-`https://github.com/jstarks/npiperelay/releases/download/v0.1.0/npiperelay_windows_amd64.zip`
+`install.sh` performs the full setup:
+- checks and installs missing dependencies (`socat`, `curl`, `unzip`),
+- installs/updates the bridge script and systemd user service,
+- configures shell startup (`SSH_AUTH_SOCK` in `.bashrc`/`.zshrc`),
+- downloads `npiperelay.exe` from GitHub ([release asset](https://github.com/jstarks/npiperelay/releases/download/v0.1.0/npiperelay_windows_amd64.zip)) and installs it into `~/.local/bin`.
 
 ```bash
 git clone https://github.com/MohandHAMADOUCHE/wsl2-ssh-pageant-bridge.git
