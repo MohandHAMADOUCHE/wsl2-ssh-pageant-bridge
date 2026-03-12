@@ -85,6 +85,29 @@ command -v powershell.exe
 
 ---
 
+## 🪟 Configure Pageant first
+
+If you use PKI/CAPI certificates, configure Pageant before running the bridge installer:
+
+1. Install a Pageant build.
+2. Start Pageant (tray icon), then right-click it and enable:
+   - `Autoload Certs & Keys`
+   - `Remember Certs & Keys`
+
+   <div align="center">
+   <img src="configure-pageant.png" alt="Configure Pageant" width="20%" />
+   </div>
+
+3. Click `Add CAPI Cert`, select your user certificate, and validate.
+4. (Recommended) Auto-start Pageant at Windows logon:
+   - press `Win + R`
+   - run `shell:startup`
+   - add a shortcut to `pageant.exe` in that Startup folder.
+
+At this point, Pageant should be running with at least one loaded identity.
+
+---
+
 ## 🚀 Installation (recommended)
 
 `install.sh` performs the full setup:
