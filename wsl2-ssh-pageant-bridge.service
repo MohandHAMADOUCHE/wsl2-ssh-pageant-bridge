@@ -1,0 +1,11 @@
+[Unit]
+Description=WSL2 SSH Pageant Bridge
+After=network.target
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+Environment=PATH=%h/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/mnt/c/Windows/System32:/mnt/c/Windows/System32/WindowsPowerShell/v1.0
+ExecStart=%h/.local/bin/wsl2-ssh-pageant-bridge.sh
+ExecStop=-/usr/bin/killall socat npiperelay.exe
+[Install]
+WantedBy=default.target
