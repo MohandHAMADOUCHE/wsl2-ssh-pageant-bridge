@@ -70,12 +70,28 @@ main() {
     check_dependencies
     install_npiperelay
     setup_scripts
+    check_pageant_preflight
     setup_systemd
     configure_shell
 
     success "Installation complete!"
     warn "Please open a new terminal or run 'source ~/.bashrc' (or ~/.zshrc) to apply the changes."
     info "You can verify the installation by running 'ssh-add -l' in the new terminal."
+}
+
+check_pageant_preflight() {
+    info "Checking Pageant availability (preflight)..."
+
+    local pageant_pipe
+    pageant_pipe=$(powershell.exe -Command "(Get-ChildItem \\\\.\\pipe\\ | Where-Object { \$_.Name -like '*pageant*' } | Select-Object -First 1).Name" 2>/dev/null | tr -d '\r')
+
+    if [ -z "$pageant_pipe" ]; then
+        warn "Pageant is not detected on Windows."
+        warn "Action: Start Pageant and load your cert/key (Add CAPI cert)."
+        warn "Then run: systemctl --user restart $SERVICE_NAME"
+    else
+        info "Pageant pipe detected: $pageant_pipe"
+    fi
 }
 
 check_dependencies() {
@@ -222,10 +238,11 @@ setup_systemd() {
         fi
 
         if [ "$check_status" -eq 1 ] || [[ "$check_output" == *"The agent has no identities"* ]]; then
-            warn "Bridge is active, but Pageant has no keys loaded. On Windows, right-click the Pageant icon and use 'Add CAPI Cert'."
+            warn "Bridge is active, but Pageant has no keys loaded."
+            warn "On Windows, right-click the Pageant icon and use 'Add CAPI Cert'."
         elif [ "$check_status" -ne 0 ]; then
             warn "Bridge service is active, but agent verification returned an unexpected status."
-            warn "ssh-add output: $check_output"
+            warn "Detail: $check_output"
         fi
     else
         warn "Systemd service failed to start. Displaying status and logs for debugging:"
@@ -234,6 +251,7 @@ setup_systemd() {
         systemctl --user status "$SERVICE_NAME" --no-pager --lines=10 >&2 || true
         echo -e "\n--- Service Logs (Last 5 entries) ---" >&2
         journalctl --user -u "$SERVICE_NAME" -n 5 --no-pager >&2 || true
+        warn "If Pageant is not running or has no key loaded, start Pageant on Windows, add your CAPI cert, then run: systemctl --user restart $SERVICE_NAME"
         error "The service could not be started. The logs above may indicate why (e.g., Pageant not running on Windows)."
     fi
 }

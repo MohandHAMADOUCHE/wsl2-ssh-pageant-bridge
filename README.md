@@ -100,29 +100,23 @@ chmod +x install.sh
 ./install.sh
 ```
 
-After install:
-- Open a new terminal, or run `source ~/.bashrc` / `source ~/.zshrc`.
-- Verify with:
-
-```bash
-ssh-add -l
-```
-
-If the bridge works, you should see your Pageant/CAPI key.
+After install, open a new terminal or run `source ~/.bashrc` / `source ~/.zshrc`.
 
 ---
 
-## ▶️ Usage after installation
+## ▶️ Verify installation
 
-1. Check the service status:
+1. Check service status:
 
 ```bash
 systemctl --user status wsl2-ssh-pageant-bridge.service --no-pager
 ```
 
-2. Check agent visibility:
+2. Check socket + key visibility:
 
 ```bash
+echo "$SSH_AUTH_SOCK"
+ls -l "$SSH_AUTH_SOCK"
 ssh-add -l
 ```
 
@@ -130,13 +124,31 @@ ssh-add -l
 - Start **Pageant** on Windows.
 - In Pageant, load your certificate/key (`Add CAPI cert`).
 
-4. Restart and verify again from WSL:
+4. Restart and verify again:
 
 ```bash
 systemctl --user restart wsl2-ssh-pageant-bridge.service
-systemctl --user status wsl2-ssh-pageant-bridge.service --no-pager
 ssh-add -l
 ```
+
+---
+
+## 🧪 Quick health check
+
+Run this from WSL to validate the full chain (service + socket + key visibility):
+
+```bash
+systemctl --user is-active wsl2-ssh-pageant-bridge.service
+echo "$SSH_AUTH_SOCK"
+ls -l "$SSH_AUTH_SOCK"
+ssh-add -l
+```
+
+Expected result:
+- service is `active`
+- socket exists
+- at least one key is listed by `ssh-add -l`
+
 
 ---
 
@@ -176,6 +188,15 @@ This is intentionally appended at the end, so it overrides earlier `gpg-agent`/`
 
 ---
 
+## ⚠️ Known limitations
+
+- Pageant must be running on Windows.
+- WSL interop must be enabled (`powershell.exe` available from WSL).
+- User systemd must be enabled in WSL.
+- If Pageant has no loaded cert/key, the bridge is reachable but `ssh-add -l` can return an empty-agent state.
+
+---
+
 ## 🛠️ Troubleshooting
 
 ### 1) Check service and logs
@@ -197,11 +218,24 @@ ssh-add -l
 
 | Symptom | Meaning | Fix |
 | :--- | :--- | :--- |
-| `❌ Erreur : Pageant (Windows) n'est pas détecté.` | Pageant pipe not visible from WSL/service context. | Start Pageant on Windows; verify service PATH and WSL interop. |
-| `⚠️ AGENT VIDE` | Bridge is up, but no key loaded in Pageant. | In Windows Pageant: `Add CAPI cert`. |
+| `❌ Error: Pageant (Windows) was not detected.` | Pageant pipe not visible from WSL/service context. | Start Pageant on Windows; verify service PATH and WSL interop. |
+| `The agent has no identities.` | Bridge is up, but no key loaded in Pageant. | In Windows Pageant: `Add CAPI cert`, then right-click Pageant and enable `Autoreload Certs & Keys` |
 | `Permission denied` for `npiperelay.exe` | Non-executable binary (often root-owned). | Re-run installer or `chmod +x ~/.local/bin/npiperelay.exe`; script also has a user-cache fallback. |
-| `Error connecting to agent: No such file or directory` after `source ~/.bashrc` | `SSH_AUTH_SOCK` points to missing socket or was overridden. | Ensure service is running and rc ends with bridge export; open new shell/re-source rc. |
+| `Error connecting to agent: No such file or directory` | `SSH_AUTH_SOCK` points to a missing socket, or bridge socket was not recreated. | Check `SSH_AUTH_SOCK`, verify Pageant pipe with the PowerShell command below, then `systemctl --user restart wsl2-ssh-pageant-bridge.service` and retry `ssh-add -l`. |
 | `ssh-add -l` → `error fetching identities: communication with agent failed` | Pageant is not running (or bridge lost communication). | Start Pageant on Windows, load your cert/key, then run `systemctl --user restart wsl2-ssh-pageant-bridge.service` and retry `ssh-add -l`. |
+
+If this command returns a Pageant pipe name:
+
+```bash
+powershell.exe -Command "(Get-ChildItem \\\\.\\pipe\\ | Where-Object { \$_.Name -like '*pageant*' } | Select-Object -First 1).Name" 2>/dev/null | tr -d '\r'
+```
+
+restart the bridge service and retry:
+
+```bash
+systemctl --user restart wsl2-ssh-pageant-bridge.service
+ssh-add -l
+```
 
 If interop is disabled, `powershell.exe` will not be available inside WSL and the bridge cannot detect Pageant.
 
@@ -238,6 +272,28 @@ ssh-add -l
 
 ---
 
+## ❓ FAQ
+
+### Do private keys get copied into WSL?
+No. Private keys stay on Windows in Pageant (smart card/CAPI side). WSL only communicates with the agent through a socket.
+
+### Why do I see `Warning: Agent is empty.`?
+The bridge is running, but Pageant has no loaded identity. In Windows Pageant, use `Add CAPI cert`, then run:
+
+```bash
+systemctl --user restart wsl2-ssh-pageant-bridge.service
+ssh-add -l
+```
+
+### Why does `ssh-add -l` change after `source ~/.bashrc`?
+Another tool (often `gpg-agent`) may override `SSH_AUTH_SOCK`. Keep this export at the end of your rc file:
+
+```bash
+export SSH_AUTH_SOCK="$HOME/.ssh/wsl-ssh-agent.sock"
+```
+
+---
+
 ## 🧹 Uninstall
 
 ```bash
@@ -245,10 +301,8 @@ chmod +x uninstall.sh
 ./uninstall.sh
 ```
 
-Uninstall does the following:
 - Stops/disables the user systemd service.
 - Removes service/script/binary files installed by this project.
 - Removes bridge export line from both `~/.bashrc` and `~/.zshrc`.
-
-After uninstall, open a new shell (or `source` your rc file) to return to your local SSH/GPG agent setup.
+- Open a new shell (or `source` your rc file) to return to your local SSH/GPG agent setup.
 
