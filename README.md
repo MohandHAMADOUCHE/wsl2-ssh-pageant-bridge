@@ -42,6 +42,49 @@ Component roles:
 
 ---
 
+## 🧩 mux SSH stability improvements
+
+When many tmux panes open at the same time, SSH may fail intermittently with exit code `255` (one pane connects, another fails, or a pane closes immediately after `ssh -t host`).
+
+The issue came from two factors combined:
+- environment mismatch between interactive and non-interactive tmux shells,
+- connection burst at startup (multiple SSH handshakes in parallel).
+
+To make this reliable, the project now applies a tmux-specific integration via `setup-tmux-ssh-bridge.sh`:
+- injects `BASH_ENV` in tmux so non-interactive shells load the same SSH logic,
+- uses `~/tmux-ssh-agent-wrapper.sh` to force `IdentityAgent=$SSH_AUTH_SOCK`,
+- adds retry + debug flow for transient `255` failures,
+- smooths startup load with a small incremental per-pane delay,
+- adds a short delay between retries,
+- keeps panes open for interactive `ssh -t` usage,
+- uses portable paths (`$HOME` / `#{HOME}`) and idempotent managed config blocks.
+
+### Verify the behavior
+
+1. Check tmux environment:
+
+```bash
+tmux show-environment -g | grep -E '^(BASH_ENV|SSH_AUTH_SOCK)='
+```
+
+2. Check wrapper injection in a tmux pane:
+
+```bash
+type ssh
+```
+
+Expected: `ssh` is a function pointing to `~/tmux-ssh-agent-wrapper.sh`.
+
+3. Check key visibility:
+
+```bash
+ssh-add -l
+```
+
+4. Re-test your tmux host layout and confirm no random `255` failures.
+
+---
+
 ## 📋 Prerequisites
 
 ### Windows
@@ -114,6 +157,7 @@ At this point, Pageant should be running with at least one loaded identity.
 - checks and installs missing dependencies (`socat`, `curl`, `unzip`),
 - installs/updates the bridge script and systemd user service,
 - configures shell startup (`SSH_AUTH_SOCK` in `.bashrc`/`.zshrc`),
+- applies tmux integration (`BASH_ENV`, SSH wrapper) via `setup-tmux-ssh-bridge.sh`,
 - downloads `npiperelay.exe` from GitHub ([release asset](https://github.com/jstarks/npiperelay/releases/download/v0.1.0/npiperelay_windows_amd64.zip)) and installs it into `~/.local/bin`.
 
 ```bash

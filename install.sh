@@ -36,13 +36,11 @@ SYSTEMD_DIR="$HOME/.config/systemd/user"
 NPIPERELAY_PATH="$BIN_DIR/npiperelay.exe"
 BRIDGE_SCRIPT_NAME="wsl2-ssh-pageant-bridge.sh"
 SERVICE_NAME="wsl2-ssh-pageant-bridge.service"
+TMUX_SETUP_SCRIPT_NAME="setup-tmux-ssh-bridge.sh"
 BRIDGE_SCRIPT_PATH="$BIN_DIR/$BRIDGE_SCRIPT_NAME"
 SERVICE_FILE_PATH="$SYSTEMD_DIR/$SERVICE_NAME"
-LEGACY_BRIDGE_SCRIPT_PATH="$BIN_DIR/pki-bridge.sh"
-LEGACY_SERVICE_FILE_PATH="$SYSTEMD_DIR/pki-bridge.service"
 EXPORT_LINE='export SSH_AUTH_SOCK="$HOME/.ssh/wsl-ssh-agent.sock"'
 SHELL_COMMENT='# Added by wsl2-ssh-pageant-bridge installer'
-LEGACY_SHELL_COMMENT='# Added by wsl-pki-bridge installer'
 NPIPERELAY_RELEASE_URL="https://github.com/jstarks/npiperelay/releases/download/v0.1.0/npiperelay_windows_amd64.zip"
 NPIPERELAY_API_LATEST_URL="https://api.github.com/repos/jstarks/npiperelay/releases/latest"
 
@@ -73,10 +71,56 @@ main() {
     check_pageant_preflight
     setup_systemd
     configure_shell
+    maybe_setup_tmux_bridge
 
     success "Installation complete!"
     warn "Please open a new terminal or run 'source ~/.bashrc' (or ~/.zshrc) to apply the changes."
     info "You can verify the installation by running 'ssh-add -l' in the new terminal."
+}
+
+maybe_setup_tmux_bridge() {
+    local choice=""
+
+    if [ "${APPLY_TMUX_CONFIG:-}" = "1" ] || [ "${APPLY_TMUX_CONFIG:-}" = "true" ] || [ "${APPLY_TMUX_CONFIG:-}" = "yes" ]; then
+        setup_tmux_bridge
+        return
+    fi
+
+    if [ "${APPLY_TMUX_CONFIG:-}" = "0" ] || [ "${APPLY_TMUX_CONFIG:-}" = "false" ] || [ "${APPLY_TMUX_CONFIG:-}" = "no" ]; then
+        info "Skipping tmux integration (APPLY_TMUX_CONFIG=${APPLY_TMUX_CONFIG})."
+        return
+    fi
+
+    if [ -t 0 ]; then
+        read -r -p "Apply tmux integration config (wrapper/BASH_ENV)? [y/N] " choice
+        case "$choice" in
+            y|Y|yes|YES)
+                setup_tmux_bridge
+                ;;
+            *)
+                info "tmux integration skipped by user choice."
+                ;;
+        esac
+    else
+        info "Non-interactive mode detected: skipping tmux integration by default."
+        info "To force it, run with APPLY_TMUX_CONFIG=true ./install.sh"
+    fi
+}
+
+setup_tmux_bridge() {
+    if [ ! -f "$TMUX_SETUP_SCRIPT_NAME" ]; then
+        warn "$TMUX_SETUP_SCRIPT_NAME not found in repository root. Skipping tmux integration setup."
+        warn "If needed later, run: ./$TMUX_SETUP_SCRIPT_NAME"
+        return
+    fi
+
+    info "Applying tmux bridge integration..."
+    chmod +x "$TMUX_SETUP_SCRIPT_NAME"
+    if ./$TMUX_SETUP_SCRIPT_NAME; then
+        success "tmux bridge integration applied."
+    else
+        error "tmux bridge integration script failed. Please fix the error and re-run install.sh."
+    fi
 }
 
 check_pageant_preflight() {
@@ -184,16 +228,12 @@ setup_scripts() {
     info "Copying bridge script..."
     cp "$BRIDGE_SCRIPT_NAME" "$BRIDGE_SCRIPT_PATH"
     chmod +x "$BRIDGE_SCRIPT_PATH"
-    rm -f "$LEGACY_BRIDGE_SCRIPT_PATH"
     success "Bridge script installed to $BRIDGE_SCRIPT_PATH"
 }
 
 setup_systemd() {
     info "Setting up systemd service..."
     mkdir -p "$SYSTEMD_DIR"
-    systemctl --user stop pki-bridge.service >/dev/null 2>&1 || true
-    systemctl --user disable pki-bridge.service >/dev/null 2>&1 || true
-    rm -f "$LEGACY_SERVICE_FILE_PATH"
 
     cp "$SERVICE_NAME" "$SERVICE_FILE_PATH"
 
@@ -281,7 +321,6 @@ configure_shell() {
             success "Shell configuration already exists in $shell_config_file."
         else
             info "Adding SSH_AUTH_SOCK to $shell_config_file..."
-            sed -i -e "\|$LEGACY_SHELL_COMMENT|d" "$shell_config_file"
             echo -e "\n$SHELL_COMMENT" >> "$shell_config_file"
             echo "$EXPORT_LINE" >> "$shell_config_file"
             updated_any=true
