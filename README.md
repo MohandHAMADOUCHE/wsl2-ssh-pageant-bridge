@@ -30,16 +30,8 @@
   - [⚙️ Manual installation (advanced)](#️-manual-installation-advanced)
   - [⚠️ Known limitations](#️-known-limitations)
   - [🛠️ Troubleshooting](#️-troubleshooting)
-    - [1) Check service and logs](#1-check-service-and-logs)
-    - [2) Check socket + key visibility](#2-check-socket--key-visibility)
-    - [3) Common cases](#3-common-cases)
-    - [4) If the service fails during installation](#4-if-the-service-fails-during-installation)
   - [🧩 Tmux SSH stability improvements](#-tmux-ssh-stability-improvements)
-    - [Verify the behavior](#verify-the-behavior)
   - [❓ FAQ](#-faq)
-    - [Do private keys get copied into WSL?](#do-private-keys-get-copied-into-wsl)
-    - [Why do I see `Warning: Agent is empty.`?](#why-do-i-see-warning-agent-is-empty)
-    - [Why does `ssh-add -l` change after `source ~/.bashrc`?](#why-does-ssh-add--l-change-after-source-bashrc)
   - [🧹 Uninstall](#-uninstall)
 ---
 
