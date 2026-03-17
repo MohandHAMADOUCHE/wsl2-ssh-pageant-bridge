@@ -13,6 +13,36 @@
 
 ---
 
+## 📚 Table of contents
+
+- [🛡️ WSL2 SSH Pageant Bridge](#️-wsl2-ssh-pageant-bridge)
+  - [📚 Table of contents](#-table-of-contents)
+  - [🎯 Why this exists](#-why-this-exists)
+  - [✅ What the current version handles](#-what-the-current-version-handles)
+  - [📋 Prerequisites](#-prerequisites)
+    - [Windows](#windows)
+    - [WSL](#wsl)
+    - [If WSL interop is disabled](#if-wsl-interop-is-disabled)
+  - [🪟 Configure Pageant first](#-configure-pageant-first)
+  - [🚀 Installation (recommended)](#-installation-recommended)
+  - [▶️ Verify installation](#️-verify-installation)
+  - [🧪 Quick health check](#-quick-health-check)
+  - [⚙️ Manual installation (advanced)](#️-manual-installation-advanced)
+  - [⚠️ Known limitations](#️-known-limitations)
+  - [🛠️ Troubleshooting](#️-troubleshooting)
+    - [1) Check service and logs](#1-check-service-and-logs)
+    - [2) Check socket + key visibility](#2-check-socket--key-visibility)
+    - [3) Common cases](#3-common-cases)
+    - [4) If the service fails during installation](#4-if-the-service-fails-during-installation)
+  - [🧩 Tmux SSH stability improvements](#-tmux-ssh-stability-improvements)
+    - [Verify the behavior](#verify-the-behavior)
+  - [❓ FAQ](#-faq)
+    - [Do private keys get copied into WSL?](#do-private-keys-get-copied-into-wsl)
+    - [Why do I see `Warning: Agent is empty.`?](#why-do-i-see-warning-agent-is-empty)
+    - [Why does `ssh-add -l` change after `source ~/.bashrc`?](#why-does-ssh-add--l-change-after-source-bashrc)
+  - [🧹 Uninstall](#-uninstall)
+---
+
 ## 🎯 Why this exists
 
 WSL cannot directly consume Windows Pageant identities. This project creates a bridge:
@@ -39,49 +69,6 @@ Component roles:
 - Shell config update in **both** `~/.bashrc` and `~/.zshrc` when present.
 - Uninstall cleanup in **both** `~/.bashrc` and `~/.zshrc`.
 - Fallback when `npiperelay.exe` is not executable/owned by root (user-local executable copy).
-
----
-
-## 🧩 mux SSH stability improvements
-
-When many tmux panes open at the same time, SSH may fail intermittently with exit code `255` (one pane connects, another fails, or a pane closes immediately after `ssh -t host`).
-
-The issue came from two factors combined:
-- environment mismatch between interactive and non-interactive tmux shells,
-- connection burst at startup (multiple SSH handshakes in parallel).
-
-To make this reliable, the project now applies a tmux-specific integration via `setup-tmux-ssh-bridge.sh`:
-- injects `BASH_ENV` in tmux so non-interactive shells load the same SSH logic,
-- uses `~/tmux-ssh-agent-wrapper.sh` to force `IdentityAgent=$SSH_AUTH_SOCK`,
-- adds retry + debug flow for transient `255` failures,
-- smooths startup load with a small incremental per-pane delay,
-- adds a short delay between retries,
-- keeps panes open for interactive `ssh -t` usage,
-- uses portable paths (`$HOME` / `#{HOME}`) and idempotent managed config blocks.
-
-### Verify the behavior
-
-1. Check tmux environment:
-
-```bash
-tmux show-environment -g | grep -E '^(BASH_ENV|SSH_AUTH_SOCK)='
-```
-
-2. Check wrapper injection in a tmux pane:
-
-```bash
-type ssh
-```
-
-Expected: `ssh` is a function pointing to `~/tmux-ssh-agent-wrapper.sh`.
-
-3. Check key visibility:
-
-```bash
-ssh-add -l
-```
-
-4. Re-test your tmux host layout and confirm no random `255` failures.
 
 ---
 
@@ -243,18 +230,6 @@ export SSH_AUTH_SOCK="$HOME/.ssh/wsl-ssh-agent.sock"
 
 ---
 
-## 🐚 Shell behavior
-
-The installer appends this line to both shell rc files (if they exist):
-
-```bash
-export SSH_AUTH_SOCK="$HOME/.ssh/wsl-ssh-agent.sock"
-```
-
-This is intentionally appended at the end, so it overrides earlier `gpg-agent`/`ssh-agent` socket exports.
-
----
-
 ## ⚠️ Known limitations
 
 - Pageant must be running on Windows.
@@ -336,6 +311,49 @@ systemctl --user status wsl2-ssh-pageant-bridge.service --no-pager
 ```bash
 ssh-add -l
 ```
+
+---
+
+## 🧩 Tmux SSH stability improvements
+
+When many tmux panes open at the same time, SSH may fail intermittently with exit code `255` (one pane connects, another fails, or a pane closes immediately after `ssh -t host`).
+
+The issue came from two factors combined:
+- environment mismatch between interactive and non-interactive tmux shells,
+- connection burst at startup (multiple SSH handshakes in parallel).
+
+To make this reliable, the project now applies a tmux-specific integration via `setup-tmux-ssh-bridge.sh`:
+- injects `BASH_ENV` in tmux so non-interactive shells load the same SSH logic,
+- uses `~/tmux-ssh-agent-wrapper.sh` to force `IdentityAgent=$SSH_AUTH_SOCK`,
+- adds retry + debug flow for transient `255` failures,
+- smooths startup load with a small incremental per-pane delay,
+- adds a short delay between retries,
+- keeps panes open for interactive `ssh -t` usage,
+- uses portable paths (`$HOME` / `#{HOME}`) and idempotent managed config blocks.
+
+### Verify the behavior
+
+1. Check tmux environment:
+
+```bash
+tmux show-environment -g | grep -E '^(BASH_ENV|SSH_AUTH_SOCK)='
+```
+
+2. Check wrapper injection in a tmux pane:
+
+```bash
+type ssh
+```
+
+Expected: `ssh` is a function pointing to `~/tmux-ssh-agent-wrapper.sh`.
+
+3. Check key visibility:
+
+```bash
+ssh-add -l
+```
+
+4. Re-test your tmux host layout and confirm no random `255` failures.
 
 ---
 
