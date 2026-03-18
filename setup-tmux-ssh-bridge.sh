@@ -104,13 +104,13 @@ run_with_retry() {
   shift
   local rc=255 attempt
 
-  for attempt in 1 2 3; do
+  for attempt in 1 2 3 4 5; do
     "$REAL_SSH" "${SSH_OPTS[@]}" "$@"
     rc=$?
     [ "$rc" -eq 0 ] && break
 
-    if [ "$rc" -eq 255 ] && [ "$attempt" -lt 3 ]; then
-      printf '\nSSH_RETRY:%s attempt %s/3\n' "$target" "$attempt"
+    if [ "$rc" -eq 255 ] && [ "$attempt" -lt 5 ]; then
+      printf '\nSSH_RETRY:%s attempt %s/5\n' "$target" "$attempt"
       sleep 3
       continue
     fi
